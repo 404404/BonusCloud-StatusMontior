@@ -50,7 +50,12 @@ else
 fi
 
 echowarn "CPU温度 / CPU temperature: \t"
-T3=$(cat /sys/class/thermal/thermal_zone0/temp | awk '{print int($1/1000)}')
+kel_v=$(uname -r | grep -q 'aml' ;echo $?)
+if [[ ${kel_v} == 0 ]]; then
+    T3=$(cat /sys/class/hwmon/hwmon0/temp1_input)
+else
+    T3=$(cat /sys/class/thermal/thermal_zone0/temp | awk '{print int($1/1000)}')
+fi
 if [[ ${T3} < 65 ]]; then  
     echoinfo "${T3}°C"
 else
