@@ -18,51 +18,28 @@ echorun() {
         "0" ) echoinfo "已调度 / Running\t";;
     esac
 }
-sys_osname(){
-    if  which lsb_release >/dev/null  2>&1; then
-        OS=$(lsb_release -is)
-        OS_CODENAME=$(lsb_release -cs)
-        return 
-    fi
-    source /etc/os-release
-    case $ID in
-        Debian ) 
-            OS="Debian"
-            if [[ $VERSION_CODENAME != "" ]]; then
-                OS_CODENAME=$VERSION_CODENAME
-            else
-                OS_CODENAME=$(echo "$VERSION"|sed -e 's/(//g' -e 's/)//g'|awk '{print $2}')
-            fi
-            ;;
-        Centos ) OS="Centos" ;;
-        *       ) OS="$ID"
 
-    esac
-}
-
-sys_osname
-printf "OS name: ${OS}     Type: "
 disk_support=$(cat /lib/systemd/system/bxc-node.service | grep -q 'devoff' ;echo $?)
 if [[ ${disk_support} == 0 ]]; then
-    printf "Dual \n"
+    printf "Type: Dual \n"
 else 
-    printf "Single \n"
+    printf "Type: Single \n"
 fi
 
 echowarn "CPU温度 / CPU temperature: \t"
 kel_v=$(uname -r | grep -q 'aml' ;echo $?)
 if [[ ${kel_v} == 0 ]]; then
-    T3=$(cat /sys/class/hwmon/hwmon0/temp1_input)
+    T3=$(cat /sys/class/hwmon/hwmon0/temp1_input | awk '{print int($1/1000)}')
 else
     T3=$(cat /sys/class/thermal/thermal_zone0/temp | awk '{print int($1/1000)}')
 fi
 if [[ ${T3} < 65 ]]; then  
-    echoinfo "${T3}°C"
+    echoinfo "${T3}°C \n"
 else
-    echoerr "${T3}°C"
+    echoerr "${T3}°C \n"
 fi
 
-echowarn "\n总缓存空间 / Total cache space: "
+echowarn "总缓存空间 / Total cache space: "
 vgs_have=$(vgs | grep -q 'BonusVolGroup' ;echo $?)
 free_space=$(vgdisplay | grep 'VG Size' | awk '{print $3,$4}' | sed -r 's/\i//g')
 [[ ${vgs_have} -eq 0  ]] && echoinfo "${free_space} \t "
@@ -89,11 +66,11 @@ for lv in $lvlist; do
     lvm_num=$(echo "$lvs_info" | awk '{print $1}' | grep -c "$lv")
     lvm_size=$(echo "$lvs_info" |grep "$lv" | awk '{print $4}' | head -n 1 | sed 's/\.00g//g')
     echoinfo " ${TYPE}-${lvm_num}-${lvm_size}GB \n"
-    echo -e "$(df -h | grep "bonusvol$lv" | awk '{print " ├─", $1, "\t\t", $3, "\t\t", $4, "\t\t   ", $5}' | sed -r 's#/dev/mapper/BonusVolGroup-bonusvol([A-Za-z0-9])#\1#g')"
+    echo -e "$(df -h | grep "bonusvol$lv" | awk '{print " ├─", $1, "\t\t", $3, "\t\t", $4, "\t\t   ", $5}' | sed -r 's#/dev/mapper/BonusVolGroup-bonusvol([A-Za-z0-9])#\1#g' | sed 's/iqiyi/65543v/' | sort)"
     printf "─────────────────────────────────────────────────────────────────────\n"
 done
 
-for sd in $(ls /dev/* | grep -E '((sd)|(vd)|(hd)|(nvme))[a-z]$'); do
+for sd in $(fdisk -l | grep -E 'Disk /dev/((sd)|(vd)|(hd))' | sed 's/Disk //g' | sed 's/\://g' | awk '{print $1}' | sort); do
     smartinfo=$(smartctl -d sat -a "${sd}")
     pv_have=$(pvs 2>/dev/null | grep -q "${sd}" ;echo $?)
     vg_have=$(pvs 2>/dev/null | grep "${sd}" | grep -q "BonusVolGroup" ;echo $?)
@@ -127,5 +104,5 @@ for sd in $(ls /dev/* | grep -E '((sd)|(vd)|(hd)|(nvme))[a-z]$'); do
     [[ ${pv_have} -eq 0 && ${vg_have} -eq 1 ]] && echoerr "  --- " && printf "/ ${C3} "
     printf "\n"
 
-    lsblk ${sd} | awk '{print $1}' | sed -r 's#BonusVolGroup-bonusvol([A-Za-z0-9])#\1#g' | sed 1,2d
+    lsblk ${sd} | awk '{print $1}' | sed -r 's#BonusVolGroup-bonusvol([A-Za-z0-9])#\1#g' | sed 1,2d | sed 's/iqiyi/65543v/'
 done
