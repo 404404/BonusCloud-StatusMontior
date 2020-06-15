@@ -19,6 +19,16 @@ echorun() {
     esac
 }
 
+smarttool_ins(){
+    if which smartctl  >/dev/null 2>&1; then
+        return
+    fi
+    apt-get update
+    apt-get install smartmontools -y
+}
+
+smarttool_ins
+
 disk_support=$(cat /lib/systemd/system/bxc-node.service | grep -q 'devoff' ;echo $?)
 if [[ ${disk_support} == 0 ]]; then
     printf "Type: Dual \n"
