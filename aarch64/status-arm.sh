@@ -77,9 +77,9 @@ echowarn "任务 / Task: "
 #任务显示
 declare -A dict
 # 任务类型字典
-dict=([iqiyi]="A" [65544v]="B" [yunduan]="B" [65542v]="C" [65541v]="D" [65540v]="F")
+dict=([iqiyi]="A" [65544]="B" [yunduan]="B" [65542v]="C" [65541v]="D" [65540v]="F")
 [[ ${lvm_have} -eq 0  ]] && lvs_info=$(lvs 2>/dev/null | grep BonusVolGroup | grep bonusvol)
-[[ ${lvm_have} -eq 0  ]] && lvlist=$(echo "$lvs_info" | awk '{print $1}' | sed -r 's#bonusvol([A-Za-z0-9]+)[0-9]{2}#\1#g' | sort -ru -k 1.4)
+[[ ${lvm_have} -eq 0  ]] && lvlist=$(echo "$lvs_info" | awk '{print $1}' | sed -r 's#bonusvol([A-Za-z0-9]+)[0-9]{2}#\1#g' | sed 's/65544v/yunduan/' | sort -ru -k 1.4)
 for lv in $lvlist; do
     TYPEs=${dict[$lv]}
     lvm_nums=$(echo "$lvs_info"|awk '{print $1}'|grep -c "$lv")
@@ -128,7 +128,7 @@ for sd in $(fdisk -l | grep -E 'Disk /dev/((sd)|(vd)|(hd))' | sed 's/Disk //g' |
     printf "│  类型 / Type\t 已使用 / Used\t 可用 / Avail\t 已用百分比 / Used%% \n"
     for lvms in $(lsblk ${sd} | awk '{print $1}' | sed -r 's#BonusVolGroup-bonusvol([A-Za-z0-9])#\1#g' | sed 1,2d | sed 's/iqiyi/65543v/' | cut -b 7-20); do
         titles=$(lsblk "${sd}" | grep "${lvms}" | awk '{print $1}' | cut -b 1-6)
-        lvm_nam=$(lvs | awk '{print $1}' | grep "${lvms}" | sed -r 's#bonusvol([A-Za-z0-9]+)[0-9]{2}#\1#g')
+        lvm_nam=$(lvs | awk '{print $1}' | grep "${lvms}" | sed -r 's#bonusvol([A-Za-z0-9]+)[0-9]{2}#\1#g' | sed 's/65544v/yunduan/')
         TYPE=${dict[${lvm_nam}]}
         echo -e "${titles}─${TYPE}${lvms:0-2:2} $(df -h | grep "${lvms}" | awk '{print "\t\t", $3, "\t\t", $4, "\t\t", $5}' | sed -r 's#/dev/mapper/BonusVolGroup-bonusvol([A-Za-z0-9])#\1#g' | sed 's/iqiyi/65543v/' | sort)"
     done
