@@ -14,8 +14,8 @@ echowarn() {
 }
 echorun() {
     case $1 in
-        "1" ) echoerr "未调度 / Not Running\t" ;;
-        "0" ) echoinfo "已调度 / Running\t";;
+        "1" ) echoerr "× \t\t" ;;
+        "0" ) echoinfo "√ \t\t";;
     esac
 }
 sys_osname(){
@@ -48,51 +48,66 @@ if [ x"${root_type}" == x"lvm" ];then
     root_vg_name=$(echo ${root_name} | awk -F- '{print $1}')
     root_disk=$(pvs 2>>/dev/null | grep ${root_vg_name} | awk '{print $1}' | sed 's/[0-9]//;s/\/dev\///')
 else
-    root_disk=$(lsblk -ar 2>>/dev/null | grep -w "/" | awk '{print $1}' | sed 's/[0-9]//')
+    disk_type=$(lsblk -ar 2>>/dev/null | grep -w "/" | awk '{print $1}' | grep -q "nvme" ;echo $?)
+    if [[ ${disk_type} == 0 ]]; then 
+        root_disk=$(lsblk -ar 2>>/dev/null | grep -w "/" | awk '{print $1}' | cut -b 1-7)
+    else
+        root_disk=$(lsblk -ar 2>>/dev/null | grep -w "/" | awk '{print $1}' | sed 's/[0-9]//')
+    fi
 fi
+
+
+# 版本信息，每次更新版本必须更改
+printf "Version: v1.5.1-pm \t\t"
+# 版本信息，每次更新版本必须更改
 
 sys_osname
-printf "OS name: ${OS} \t Type: "
-disk_support=$(cat /lib/systemd/system/bxc-node.service | grep -q 'devoff' ;echo $?)
+printf "OS name: ${OS} \n"
 lvm_have=$(lvs 2>/dev/null | grep -q 'BonusVolGroup';echo $?)
 vg_have=$(vgs 2>/dev/null | grep -q 'BonusVolGroup';echo $?)
-if [[ ${disk_support} == 0 ]]; then
-    printf "Dual \t"
-else 
-    printf "Single \t"
-fi
-# 版本信息，每次更新版本必须更改
-printf " Version: v1.3-pm \n"
-# 版本信息，每次更新版本必须更改
 
-echowarn "状态 / Status: "
+
+echowarn "运行？ / Running? : "
 lvm_have=$(lvs 2>/dev/null | grep -q 'BonusVolGroup';echo $?)
 [[ ${lvm_have} -eq 0  ]] && { echorun "0";}|| echorun "1"
-printf "\t"
+
+disk_support=$(cat /lib/systemd/system/bxc-node.service | grep -q 'devoff' ;echo $?)
+echowarn "多盘？ / Multi-disk? : "
+if [[ ${disk_support} == 0 ]]; then
+    echoinfo "√ \n"
+else 
+    echoerr "× \n"
+fi
+
+echowarn "总空间 / Total: "
+vgs_have=$(vgs | grep -q 'BonusVolGroup' ;echo $?)
+used_space=$(vgdisplay | grep 'VG Size' | awk '{print $3,$4}' | sed -r 's/\i//g')
+[[ ${vgs_have} -eq 0  ]] && printf "${used_space} \t" 
+[[ ${vgs_have} -eq 1  ]] && echowarn " --- " && printf "\t\t"
+
+cpu_have=$(ls /sys/class/thermal | grep -q "/thermal_zone0/temp";echo $?)
+echowarn "CPU温度 / CPU temp: "
+if [[ ${cpu_have} == 0 ]]; then
+    T3=$(cat /sys/class/thermal/thermal_zone0/temp | awk '{print int($1/1000)}')
+    if [[ ${T3} < 65 ]]; then  
+        echoinfo "${T3}°C \n"
+    else
+        echoerr "${T3}°C \n"
+    fi
+else
+    printf "在虚拟机中不支持 / Not supported in VM \n"
+fi
+
+echowarn "未分配 / Avail: "
+free_space=$(vgdisplay | grep 'Free  PE / Size' | awk '{print $7,$8}' | sed 's/\i//g')
+[[ ${lvm_have} -eq 0 ]] && printf "${free_space} \t"
+[[ ${lvm_have} -eq 1 ]] && printf " --- " && printf "\t\t"
 
 echowarn "已同步 / Synced: "
 syncd="$(df -BG|grep "bonusvol"|awk '{sum += int($3)}; END {print sum}')"
 [[ ${lvm_have} -eq 0 ]] && printf "${syncd} GB "
 [[ ${lvm_have} -eq 0 ]] && echo -e "($(lvs|grep BonusVolGroup|grep bonusvol|awk '{sum += int($4)}; END {print ('${syncd}'/sum)*100}')%)"
-
-echowarn "总空间 / Total: "
-vgs_have=$(vgs | grep -q 'BonusVolGroup' ;echo $?)
-used_space=$(vgdisplay | grep 'VG Size' | awk '{print $3,$4}' | sed -r 's/\i//g')
-[[ ${vgs_have} -eq 0  ]] && printf "${used_space} \t\t"
-[[ ${vgs_have} -eq 1  ]] && echowarn "--- \t\t"
-
-echowarn "未分配空间 / Avail: "
-free_space=$(vgdisplay | grep 'Free  PE / Size' | awk '{print $7,$8}' | sed 's/\i//g')
-[[ ${lvm_have} -eq 0 ]] && printf "${free_space}"
-printf "\n"
-
-echowarn "CPU温度 / CPU temperature: "
-T3=$(cat /sys/class/thermal/thermal_zone0/temp | awk '{print int($1/1000)}')
-if [[ ${T3} < 65 ]]; then  
-    echoinfo "${T3}°C \t"
-else
-    echoerr "${T3}°C \t"
-fi
+[[ ${lvm_have} -eq 1 ]] && printf " --- " && printf "\n"
 
 echowarn "任务 / Task: "
 #任务显示
@@ -110,9 +125,9 @@ done
 printf "\n"
 
 roots_disk=$(ls /dev/* | grep "${root_disk}" | sed -n 1p)
-smarts=$(smartctl -d sat -a "${roots_disk}")
+smarts=$(smartctl -a "${roots_disk}")
 echoinfo "${roots_disk}     "
-R0=$(echo "$smarts" | grep 'User Capacity' | awk '{print $5 $6}' | sed -r 's#\[##g' | sed -r 's#\]##g')
+R0=$(echo "$smarts" | grep 'Capacity' | awk '{print $5 $6}' | sed -r 's#\[##g' | sed -r 's#\]##g')
 T0=$(echo "$smarts" | grep '194 Temperature_Celsius' | awk '{print $10}' | sed 2d)
 if [[ ${T0} < 55 ]]; then 
     echoinfo "${T0}°C     "
@@ -132,7 +147,7 @@ if [[ ${disk_support} == 0 ]]; then
             printf "${R0} - ${R1}GB / ${R2}B"
         fi
         echoinfo "\t root disks \n"
-        printf "│  类型 / Type\t 已使用 / Used\t 可用 / Avail\t 已用百分比 / Used%% \n"
+        [[ ${lvm_have} -eq 0  ]] && printf "│  类型 / Type\t 已使用 / Used\t 可用 / Avail\t 已用百分比 / Used%% \n"
         for lvms in $(lsblk "${roots_disk}" | grep "BonusVolGroup-bonusvol" | awk '{print $2}' | sed -r 's#BonusVolGroup-bonusvol([A-Za-z0-9])#\1#g'| sed 's/iqiyi/65543v/' | cut -b 7-20); do
             titles=$(lsblk "${roots_disk}" | grep "${lvms}" | awk '{print $2}' | cut -b 1-6)
             lvm_nam=$(lvs | awk '{print $1}' | grep "${lvms}" | sed -r 's#bonusvol([A-Za-z0-9]+)[0-9]{2}#\1#g' | sed 's/65544v/yunduan/')
@@ -145,12 +160,11 @@ if [[ ${disk_support} == 0 ]]; then
     fi
 fi
 
-for sd in $(ls /dev/* | grep -E '((sd)|(vd)|(hd)|(nvme))[a-z]$' | grep -v "${root_disk}" | sort); do
-    smartinfo=$(smartctl -d sat -a "${sd}")
+for sd in $(ls /dev/* | grep -E '((sd[a-z]$)|(vd[a-z]$)|(hd[a-z]$)|(nvme[0-9][a-z][0-9]$))' | grep -v "${root_disk}" | sort); do
+    smartinfo=$(smartctl -a "${sd}")
     pv_have=$(pvs 2>/dev/null | grep -q "${sd}" ;echo $?)
     vg_have=$(pvs 2>/dev/null | grep "${sd}" | grep -q "BonusVolGroup" ;echo $?)
-    temp_have=$(echo smartctl -d sat -a "${sd}" | grep -q "194 Temperature_Celsius" ;echo $?)
-    I1=$(echo "$smartinfo" | grep 'User Capacity' | awk '{print $5 $6}' | sed -r 's#\[##g' | sed -r 's#\]##g')
+    I1=$(echo "$smartinfo" | grep 'Capacity' | awk '{print $5 $6}' | sed -r 's#\[##g' | sed -r 's#\]##g')
     T1=$(echo "$smartinfo" | grep '194 Temperature_Celsius' | awk '{print $10}' | sed 2d)
 
     echoinfo "${sd}     "
@@ -160,7 +174,9 @@ for sd in $(ls /dev/* | grep -E '((sd)|(vd)|(hd)|(nvme))[a-z]$' | grep -v "${roo
         echoerr "${T1}°C     "
     fi
 
-    [[ ${pv_have} -eq 0 ]] && C1=$(lsblk ${sd} | sed '1,2d' | awk 'BEGIN {sum = 0} {sum += $4} END {print sum}')
+    part_check=$(lsblk "${sd}" | grep -q "part" ;echo $?)
+    [[ ${pv_have} -eq 0 ]] && [[ ${part_check} == 1 ]] && C1=$(lsblk ${sd} | sed '1,2d' | awk 'BEGIN {sum = 0} {sum += $4} END {print sum}')
+    [[ ${pv_have} -eq 0 ]] && [[ ${part_check} == 0 ]] && C1=$(lsblk ${sd} |  grep "BonusVolGroup-bonusvol" | awk 'BEGIN {sum = 0} {sum += $5} END {print sum}')
     [[ ${pv_have} -eq 0 ]] && C2=$(pvs 2>/dev/null | grep "${sd}" | awk '{print $6}' | sed -r 's/\.[0-9][0-9]//g' | tr 'a-z' 'A-Z')
     printf "${I1} - "
     if [[ ${pv_have} == 0 ]]; then 
@@ -179,11 +195,22 @@ for sd in $(ls /dev/* | grep -E '((sd)|(vd)|(hd)|(nvme))[a-z]$' | grep -v "${roo
     [[ ${pv_have} -eq 0 && ${vg_have} -eq 1 ]] && echoerr "  --- " && printf "/ ${C3} "
     printf "\n"
 
-    printf "│  类型 / Type\t 已使用 / Used\t 可用 / Avail\t 已用百分比 / Used%% \n"
-    for lvms in $(lsblk ${sd} | awk '{print $1}' | sed -r 's#BonusVolGroup-bonusvol([A-Za-z0-9])#\1#g' | sed 1,2d | sed 's/iqiyi/65543v/' | cut -b 7-20); do
-        titles=$(lsblk "${sd}" | grep "${lvms}" | awk '{print $1}' | cut -b 1-6)
-        lvm_nam=$(lvs | awk '{print $1}' | grep "${lvms}" | sed -r 's#bonusvol([A-Za-z0-9]+)[0-9]{2}#\1#g' | sed 's/65544v/yunduan/')
-        TYPE=${dict[${lvm_nam}]}
-        echo -e "${titles}─${TYPE}${lvms:0-2:2} $(df -h | grep "${lvms}" | awk '{print "\t\t", $3, "\t\t", $4, "\t\t", $5}' | sed -r 's#/dev/mapper/BonusVolGroup-bonusvol([A-Za-z0-9])#\1#g' | sed 's/iqiyi/65543v/' | sort)"
-    done
+    [[ ${lvm_have} -eq 0  ]] && printf "│  类型 / Type\t 已使用 / Used\t 可用 / Avail\t 已用百分比 / Used%% \n"
+    if [[ ${part_check} == 1 ]]; then
+        for lvms in $(lsblk ${sd} | awk '{print $1}' | sed -r 's#BonusVolGroup-bonusvol([A-Za-z0-9])#\1#g' | sed 1,2d | sed 's/iqiyi/65543v/' | cut -b 7-20); do
+            titles=$(lsblk "${sd}" | grep "${lvms}" | awk '{print $1}' | cut -b 1-6)
+            lvm_nam=$(lvs | awk '{print $1}' | grep "${lvms}" | sed -r 's#bonusvol([A-Za-z0-9]+)[0-9]{2}#\1#g' | sed 's/65544v/yunduan/')
+            TYPE=${dict[${lvm_nam}]}
+            echo -e "${titles}─${TYPE}${lvms:0-2:2} $(df -h | grep "${lvms}" | awk '{print "\t\t", $3, "\t\t", $4, "\t\t", $5}' | sed -r 's#/dev/mapper/BonusVolGroup-bonusvol([A-Za-z0-9])#\1#g' | sed 's/iqiyi/65543v/' | sort)"
+        done
+    else
+        for lvms in $(lsblk ${sd} | awk '{print $2}' | sed -r 's#BonusVolGroup-bonusvol([A-Za-z0-9])#\1#g' | sed 1,2d | sed 's/iqiyi/65543v/' | cut -b 7-20); do
+            titles=$(lsblk "${sd}" | grep "${lvms}" | awk '{print $2}' | cut -b 1-6)
+            lvm_nam=$(lvs | awk '{print $1}' | grep "${lvms}" | sed -r 's#bonusvol([A-Za-z0-9]+)[0-9]{2}#\1#g' | sed 's/65544v/yunduan/')
+            TYPE=${dict[${lvm_nam}]}
+            echo -e "${titles}─${TYPE}${lvms:0-2:2} $(df -h | grep "${lvms}" | awk '{print "\t\t", $3, "\t\t", $4, "\t\t", $5}' | sed -r 's#/dev/mapper/BonusVolGroup-bonusvol([A-Za-z0-9])#\1#g' | sed 's/iqiyi/65543v/' | sort)"
+        done
+    fi
 done
+
+printf "\n"
