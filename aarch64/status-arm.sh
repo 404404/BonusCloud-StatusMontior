@@ -84,7 +84,7 @@ echowarn "任务 / Task: "
 #任务显示
 declare -A dict
 # 任务类型字典
-dict=([iqiyi]="A" [65544]="B" [yunduan]="B" [65542v]="C" [65541v]="D" [65540v]="F")
+dict=([iqiyi]="A" [yunduan]="B" [65542v]="C" [65541v]="D" [65540v]="F" [65546v]="G" [65539v]="H")
 [[ ${lvm_have} -eq 0  ]] && lvs_info=$(lvs 2>/dev/null | grep BonusVolGroup | grep bonusvol)
 [[ ${lvm_have} -eq 0  ]] && lvlist=$(echo "$lvs_info" | awk '{print $1}' | sed -r 's#bonusvol([A-Za-z0-9]+)[0-9]{2}#\1#g' | sed 's/65544v/yunduan/' | sort -ru -k 1.4)
 for lv in $lvlist; do
