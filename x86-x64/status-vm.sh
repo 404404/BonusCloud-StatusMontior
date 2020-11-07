@@ -43,7 +43,7 @@ sys_osname(){
 #任务显示
 declare -A dict
 # 任务类型字典
-dict=([iqiyi]="A" [65544]="B" [yunduan]="B" [65542v]="C" [65541v]="D" [65540v]="F")
+dict=([iqiyi]="A" [yunduan]="B" [65542v]="C" [65541v]="D" [65540v]="F" [65546v]="G" [65539v]="H")
 #获取系统盘符，应对系统盘不是sda的情况
 root_type=$(lsblk -ar 2>>/dev/null | grep -w "/" | awk '{print $(NF-1)}')
 root_name=$(lsblk -ar 2>>/dev/null | grep -w "/" | awk '{print $1}')
