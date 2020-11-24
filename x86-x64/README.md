@@ -1,6 +1,7 @@
 # BonusCloud-StatusMontior for x86-x64
 
-下载 / Download (在SSH中执行 / Run in shell)
+下载 / Download
+(在SSH中执行 / Run in shell)
 
 
 虚拟机 / Virtual Machines
