@@ -4,6 +4,7 @@
 
 (在SSH中执行 / Run in shell)
 
+----------------------------------------------------------------------------------------------------------------------
 
 虚拟机 / Virtual Machines
 
@@ -17,6 +18,7 @@ Coding：
 wget https://a404404.coding.net/p/BonusCloud/d/BonusCloud-StatusMontior/git/raw/master/x86-x64/status-vm.sh -O status-vm.sh
 ```
 
+----------------------------------------------------------------------------------------------------------------------
 
 物理机 / Physical Machines
 
